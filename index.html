@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>美辉智能客服 · 美辉科技有限公司</title>
+    <meta name="description" content="美辉科技有限公司AI智能客服 — 条码系统集成、RFID智能方案设计、无线应用系统专业解决方案">
+    <meta name="keywords" content="美辉科技,条码系统,RFID,无线应用,扫描枪,条码打印机">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:          #080808;
+            --surface:     #101010;
+            --card:        #161616;
+            --card-hover:  #1c1c1c;
+            --input-bg:    #1a1a1a;
+            --red:         #dc2626;
+            --red-light:   #ef4444;
+            --red-deep:    #991b1b;
+            --red-glow:    rgba(220, 38, 38, 0.20);
+            --red-dim:     rgba(220, 38, 38, 0.08);
+            --red-border:  rgba(220, 38, 38, 0.28);
+            --white:       #f3f3f3;
+            --grey:        #9ca3af;
+            --muted:       #4b5563;
+            --border:      rgba(255, 255, 255, 0.07);
+            --font:        -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei UI',
+                           'Microsoft YaHei', '微软雅黑', 'Noto Sans SC', 'Segoe UI', sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--white);
+            font-family: var(--font);
+            font-size: 15px;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow: hidden;
+        }
+
+        /* ── Background ─────────────────────────────────────────── */
+        .bg-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 90% 55% at 50% -5%,  rgba(220,38,38,0.13) 0%, transparent 65%),
+                radial-gradient(ellipse 50% 35% at 90% 90%, rgba(220,38,38,0.06) 0%, transparent 55%),
+                radial-gradient(ellipse 30% 20% at 10% 70%, rgba(220,38,38,0.04) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        /* subtle grid */
+        .bg-layer::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.023) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.023) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* ── App shell ──────────────────────────────────────────── */
+        #app {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 860px;
+            margin: 0 auto;
+        }
+
+        /* ── Header ─────────────────────────────────────────────── */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 22px;
+            background: rgba(8,8,8,0.92);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 2px 30px rgba(220,38,38,0.07);
+            flex-shrink: 0;
+        }
+
+        .logo-box {
+            width: 46px;
+            height: 46px;
+            border-radius: 13px;
+            background: linear-gradient(140deg, var(--red) 0%, var(--red-deep) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 900;
+            color: #fff;
+            letter-spacing: -1px;
+            box-shadow: 0 0 24px rgba(220,38,38,0.45), inset 0 1px 0 rgba(255,255,255,0.15);
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+        .logo-box::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 50%;
+            background: linear-gradient(rgba(255,255,255,0.12), transparent);
+            border-radius: 13px 13px 0 0;
+        }
+
+        .header-info { flex: 1; min-width: 0; }
+
+        .header-cn {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--white);
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .header-en {
+            font-size: 11.5px;
+            color: var(--muted);
+            margin-top: 1px;
+            letter-spacing: 0.2px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 11px;
+            background: rgba(34,197,94,0.08);
+            border: 1px solid rgba(34,197,94,0.2);
+            border-radius: 20px;
+            font-size: 11.5px;
+            color: #4ade80;
+            white-space: nowrap;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse-g 2.2s infinite;
+        }
+        @keyframes pulse-g {
+            0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+            50%      { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+        }
+
+        /* lang toggle */
+        .lang-toggle {
+            display: flex;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .lang-btn {
+            padding: 5px 11px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: var(--font);
+            transition: all 0.2s;
+        }
+        .lang-btn.active { background: var(--red); color: #fff; }
+        .lang-btn:hover:not(.active) { color: var(--grey); background: var(--card); }
+
+        /* ── Messages ───────────────────────────────────────────── */
+        #messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 22px 22px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(220,38,38,0.25) transparent;
+        }
+        #messages::-webkit-scrollbar { width: 4px; }
+        #messages::-webkit-scrollbar-track { background: transparent; }
+        #messages::-webkit-scrollbar-thumb { background: rgba(220,38,38,0.25); border-radius: 4px; }
+
+        /* welcome card */
+        .welcome-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--red);
+            border-radius: 16px;
+            padding: 20px 20px 16px;
+            margin-bottom: 10px;
+            animation: fadeUp 0.5s ease both;
+        }
+        .welcome-headline {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--white);
+            margin-bottom: 6px;
+        }
+        .welcome-sub {
+            font-size: 13px;
+            color: var(--grey);
+            line-height: 1.7;
+        }
+        .welcome-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-top: 14px;
+        }
+        .welcome-tag {
+            padding: 4px 11px;
+            background: var(--red-dim);
+            border: 1px solid var(--red-border);
+            border-radius: 6px;
+            font-size: 12px;
+            color: var(--red-light);
+            font-weight: 500;
+        }
+
+        /* message row */
+        .msg-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 2px;
+            animation: fadeUp 0.28s ease both;
+        }
+        .msg-row.user { flex-direction: row-reverse; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .msg-col {
+            display: flex;
+            flex-direction: column;
+            max-width: 72%;
+        }
+        .msg-row.user .msg-col { align-items: flex-end; }
+
+        .msg-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .msg-avatar.bot {
+            background: linear-gradient(135deg, var(--red), var(--red-deep));
+            color: #fff;
+            box-shadow: 0 0 14px rgba(220,38,38,0.35);
+        }
+        .msg-avatar.usr {
+            background: #1f2937;
+            color: var(--grey);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .msg-bubble {
+            padding: 11px 15px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.68;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .msg-bubble.bot {
+            background: var(--card);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-top-left-radius: 4px;
+            color: var(--white);
+        }
+        .msg-bubble.user {
+            background: linear-gradient(135deg, var(--red) 0%, #b91c1c 100%);
+            border-top-right-radius: 4px;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(220,38,38,0.25);
+        }
+
+        .msg-time {
+            font-size: 10.5px;
+            color: var(--muted);
+            margin-top: 4px;
+            padding: 0 2px;
+        }
+
+        /* typing */
+        .typing-row {
+            display: flex;
+            gap: 10px;
+            animation: fadeUp 0.25s ease both;
+            margin-bottom: 2px;
+        }
+        .typing-dots {
+            background: var(--card);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-top-left-radius: 4px;
+            border-radius: 16px;
+            padding: 14px 18px;
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .typing-dot {
+            width: 7px;
+            height: 7px;
+            background: var(--red);
+            border-radius: 50%;
+            animation: bounce 1.3s infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.18s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.36s; }
+        @keyframes bounce {
+            0%,60%,100% { transform: translateY(0);   opacity: 0.4; }
+            30%          { transform: translateY(-7px); opacity: 1; }
+        }
+
+        /* ── Suggestions ────────────────────────────────────────── */
+        #suggestions {
+            padding: 6px 22px 10px;
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .chip {
+            padding: 7px 14px;
+            background: var(--card);
+            border: 1px solid var(--red-border);
+            border-radius: 20px;
+            font-size: 12.5px;
+            color: var(--grey);
+            cursor: pointer;
+            font-family: var(--font);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .chip:hover {
+            background: var(--red-dim);
+            color: var(--red-light);
+            border-color: var(--red);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(220,38,38,0.15);
+        }
+        .chip:active { transform: translateY(0); }
+
+        /* ── Input bar ──────────────────────────────────────────── */
+        .input-area {
+            flex-shrink: 0;
+            padding: 10px 22px 18px;
+            background: rgba(8,8,8,0.92);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-top: 1px solid var(--border);
+        }
+        .input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--input-bg);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 14px;
+            padding: 4px 5px 4px 16px;
+            transition: border-color 0.25s, box-shadow 0.25s;
+        }
+        .input-wrap:focus-within {
+            border-color: rgba(220,38,38,0.45);
+            box-shadow: 0 0 0 3px rgba(220,38,38,0.09);
+        }
+        #chat-input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            font-family: var(--font);
+            font-size: 14px;
+            color: var(--white);
+            padding: 10px 0;
+            caret-color: var(--red-light);
+        }
+        #chat-input::placeholder { color: var(--muted); }
+
+        #send-btn {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, var(--red), var(--red-deep));
+            border: none;
+            border-radius: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            box-shadow: 0 2px 14px rgba(220,38,38,0.35);
+        }
+        #send-btn:hover  { transform: scale(1.06); box-shadow: 0 4px 22px rgba(220,38,38,0.5); }
+        #send-btn:active { transform: scale(0.94); }
+        #send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        #send-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+        .input-footer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 9px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .input-footer span { color: rgba(220,38,38,0.6); }
+
+        /* ── Responsive ─────────────────────────────────────────── */
+        @media (max-width: 600px) {
+            .header { padding: 12px 14px; }
+            .header-en, .header-right .status-pill { display: none; }
+            #messages { padding: 16px 14px 10px; }
+            .msg-col { max-width: 84%; }
+            #suggestions { padding: 4px 14px 8px; }
+            .input-area { padding: 8px 14px 14px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-layer"></div>
+
+<div id="app">
+
+    <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+    <header class="header">
+        <div class="logo-box">美辉</div>
+
+        <div class="header-info">
+            <div class="header-cn">美辉科技 · AI 智能客服</div>
+            <div class="header-en">Meihui Technology Co., Ltd. · AI Customer Service</div>
+        </div>
+
+        <div class="header-right">
+            <div class="lang-toggle">
+                <button class="lang-btn active" id="lang-zh" onclick="setLang('zh')">中文</button>
+                <button class="lang-btn"        id="lang-en" onclick="setLang('en')">EN</button>
+            </div>
+            <div class="status-pill">
+                <div class="status-dot"></div>
+                <span id="status-text">在线</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══ MESSAGES ═════════════════════════════════════════════ -->
+    <div id="messages"></div>
+
+    <!-- ═══ SUGGESTIONS ══════════════════════════════════════════ -->
+    <div id="suggestions"></div>
+
+    <!-- ═══ INPUT ════════════════════════════════════════════════ -->
+    <div class="input-area">
+        <div class="input-wrap">
+            <input
+                type="text"
+                id="chat-input"
+                placeholder="请输入您的问题 / Ask your question..."
+                autocomplete="off"
+                maxlength="600"
+                aria-label="Chat input"
+            >
+            <button id="send-btn" aria-label="Send">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </div>
+        <div class="input-footer">
+            <span>●</span>
+            美辉科技有限公司 &nbsp;·&nbsp; Meihui Technology Co., Ltd.
+            <span>●</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══ SCRIPT ═══════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── Config ───────────────────────────────────────────────────── */
+const API_KEY = 'sk-d71be64a6edd4c248c6cbbf37b072805';
+const API_URL = 'https://api.deepseek.com/v1/chat/completions';
+const MODEL   = 'deepseek-chat';
+
+const SYSTEM_PROMPT = `You are 美辉客服助手 (Meihui AI Customer Service Assistant), the official bilingual AI assistant for 美辉科技有限公司 (Meihui Technology Co., Ltd.).
+
+══ COMPANY OVERVIEW ══
+美辉科技有限公司 is a professional technology company specialising in three core solution areas:
+
+1. 条码系统集成 (Barcode System Integration)
+   - Handheld barcode scanners (手持式条码扫描枪) for warehousing, retail, logistics
+   - Fixed-mount and presentation scanners for checkout and conveyors
+   - Industrial barcode label printers (条码打印机) — thermal transfer and direct thermal
+   - Complete barcode label design, printing, and management systems
+   - POS integration, inventory management system integration
+   - System installation, configuration, training, and after-sales support
+
+2. RFID智能方案设计 (RFID Intelligent Solution Design)
+   - UHF / HF / NFC RFID system design and deployment
+   - Warehouse inventory management (仓储盘点), asset tracking (资产追踪)
+   - Supply chain visibility (供应链可视化) and production line tracking
+   - Retail loss prevention and smart shelf solutions
+   - Access control (门禁) and personnel management
+   - Full project scope: consultation → hardware supply → software integration → go-live support
+
+3. 无线应用系统 (Wireless Application Systems)
+   - Industrial-grade WiFi network planning and deployment
+   - Wireless handheld terminals (无线手持终端) and mobile data collection
+   - Warehouse mobile WMS (仓库管理系统) applications
+   - Enterprise wireless network infrastructure consulting
+
+══ INDUSTRIES SERVED ══
+物流仓储 (Logistics & Warehousing) | 制造业 (Manufacturing) | 零售 (Retail) | 医疗 (Healthcare) | 政府 (Government) | 教育 (Education) | 餐饮 (Food & Beverage)
+
+══ YOUR BEHAVIOUR RULES ══
+• LANGUAGE: Detect and match the user's language exactly. Chinese → respond in Chinese. English → respond in English. Mixed → use the dominant language.
+• TONE: Professional, warm, solution-focused, concise. Like a knowledgeable senior sales engineer.
+• PRICING: Never state specific prices. Say: "请联系我们的销售团队获取专属报价 (Please contact our sales team for a customised quotation)."
+• CONSULTATION: Proactively offer a free technical consultation (免费技术咨询) for complex requirements.
+• UNKNOWN INFO: If unsure, say so honestly and offer to connect them with the right expert.
+• FORMAT: Use bullet points for lists. Keep responses focused — ideally under 200 words per reply unless detail is required.
+• CONTACT: Guide interested users to reach the sales / technical team directly.`;
+
+const CHIPS = {
+    zh: [
+        '你们有哪些条码扫描方案？',
+        'RFID适合哪些应用场景？',
+        '仓储无线系统如何部署？',
+        '如何获取产品报价？',
+        '你们提供售后技术支持吗？',
+    ],
+    en: [
+        'What barcode solutions do you offer?',
+        'Which industries suit RFID systems?',
+        'How do I get a price quote?',
+        'Tell me about wireless warehouse systems',
+        'Do you provide after-sales support?',
+    ],
+};
+
+/* ── State ────────────────────────────────────────────────────── */
+let history   = [{ role: 'system', content: SYSTEM_PROMPT }];
+let busy      = false;
+let lang      = 'zh';
+
+/* ── DOM refs ─────────────────────────────────────────────────── */
+const msgsEl      = document.getElementById('messages');
+const inputEl     = document.getElementById('chat-input');
+const sendBtn     = document.getElementById('send-btn');
+const suggestEl   = document.getElementById('suggestions');
+const statusEl    = document.getElementById('status-text');
+
+/* ── Init ─────────────────────────────────────────────────────── */
+renderWelcome();
+renderChips();
+
+/* ── Language toggle ─────────────────────────────────────────── */
+function setLang(l) {
+    lang = l;
+    document.getElementById('lang-zh').classList.toggle('active', l === 'zh');
+    document.getElementById('lang-en').classList.toggle('active', l === 'en');
+    inputEl.placeholder = l === 'zh'
+        ? '请输入您的问题...'
+        : 'Ask your question...';
+    renderChips();
+}
+
+/* ── Welcome card ────────────────────────────────────────────── */
+function renderWelcome() {
+    const card = document.createElement('div');
+    card.className = 'welcome-card';
+    card.innerHTML = `
+        <div class="welcome-headline">👋 您好，欢迎联系美辉科技！</div>
+        <div class="welcome-sub">
+            我是美辉智能客服助手，可以为您解答条码系统、RFID方案及无线应用相关的所有问题。<br>
+            <span style="color:#6b7280;font-size:12.5px;">I'm Meihui's AI assistant — here to help with barcode, RFID, and wireless solutions.</span>
+        </div>
+        <div class="welcome-tags">
+            <span class="welcome-tag">📊 条码系统集成</span>
+            <span class="welcome-tag">📡 RFID智能方案</span>
+            <span class="welcome-tag">🌐 无线应用系统</span>
+        </div>
+    `;
+    msgsEl.appendChild(card);
+}
+
+/* ── Suggestion chips ────────────────────────────────────────── */
+function renderChips() {
+    suggestEl.innerHTML = '';
+    CHIPS[lang].forEach(text => {
+        const btn = document.createElement('button');
+        btn.className = 'chip';
+        btn.textContent = text;
+        btn.addEventListener('click', () => send(text));
+        suggestEl.appendChild(btn);
+    });
+}
+
+/* ── Append message ──────────────────────────────────────────── */
+function appendMessage(role, text) {
+    const row = document.createElement('div');
+    row.className = `msg-row ${role === 'user' ? 'user' : ''}`;
+
+    const av = document.createElement('div');
+    av.className = `msg-avatar ${role === 'user' ? 'usr' : 'bot'}`;
+    av.textContent = role === 'user' ? '您' : '美';
+
+    const col = document.createElement('div');
+    col.className = 'msg-col';
+
+    const bubble = document.createElement('div');
+    bubble.className = `msg-bubble ${role === 'user' ? 'user' : 'bot'}`;
+    bubble.textContent = text;
+
+    const time = document.createElement('div');
+    time.className = 'msg-time';
+    time.textContent = now();
+
+    col.appendChild(bubble);
+    col.appendChild(time);
+    row.appendChild(av);
+    row.appendChild(col);
+    msgsEl.appendChild(row);
+    scrollDown();
+}
+
+/* ── Typing indicator ────────────────────────────────────────── */
+function showTyping() {
+    const row = document.createElement('div');
+    row.className = 'typing-row';
+    row.id = 'typing-row';
+    row.innerHTML = `
+        <div class="msg-avatar bot">美</div>
+        <div class="typing-dots">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+    `;
+    msgsEl.appendChild(row);
+    scrollDown();
+}
+function hideTyping() {
+    const el = document.getElementById('typing-row');
+    if (el) el.remove();
+}
+
+/* ── Send message ────────────────────────────────────────────── */
+async function send(preset) {
+    const text = (preset || inputEl.value).trim();
+    if (!text || busy) return;
+
+    inputEl.value = '';
+    busy = true;
+    sendBtn.disabled = true;
+    suggestEl.style.display = 'none';
+
+    appendMessage('user', text);
+    history.push({ role: 'user', content: text });
+
+    showTyping();
+    statusEl.textContent = lang === 'zh' ? '思考中…' : 'Thinking…';
+
+    try {
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_KEY}`,
+            },
+            body: JSON.stringify({
+                model:       MODEL,
+                messages:    history,
+                temperature: 0.72,
+                max_tokens:  900,
+                stream:      false,
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(`${res.status} – ${err.error?.message || 'API error'}`);
+        }
+
+        const data  = await res.json();
+        const reply = data.choices[0].message.content.trim();
+
+        hideTyping();
+        appendMessage('bot', reply);
+        history.push({ role: 'assistant', content: reply });
+
+    } catch (e) {
+        hideTyping();
+        const msg = lang === 'zh'
+            ? '抱歉，连接出现问题，请稍后再试。\n(Sorry, a connection issue occurred. Please try again.)'
+            : 'Sorry, a connection issue occurred. Please try again later.';
+        appendMessage('bot', msg);
+        console.error('[Meihui AI]', e);
+    }
+
+    statusEl.textContent = lang === 'zh' ? '在线' : 'Online';
+    busy = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+}
+
+/* ── Helpers ─────────────────────────────────────────────────── */
+function scrollDown() {
+    requestAnimationFrame(() => { msgsEl.scrollTop = msgsEl.scrollHeight; });
+}
+function now() {
+    return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+/* ── Events ──────────────────────────────────────────────────── */
+sendBtn.addEventListener('click', () => send());
+inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+</script>
+</body>
+</html>
