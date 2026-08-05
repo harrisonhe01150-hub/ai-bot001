@@ -513,49 +513,12 @@
 <script>
 'use strict';
 
-/* ── Config ───────────────────────────────────────────────────── */
-const API_KEY = 'sk-d71be64a6edd4c248c6cbbf37b072805';
-const API_URL = 'https://api.deepseek.com/v1/chat/completions';
-const MODEL   = 'deepseek-chat';
-
-const SYSTEM_PROMPT = `You are 美辉客服助手 (Meihui AI Customer Service Assistant), the official bilingual AI assistant for 美辉科技有限公司 (Meihui Technology Co., Ltd.).
-
-══ COMPANY OVERVIEW ══
-美辉科技有限公司 is a professional technology company specialising in three core solution areas:
-
-1. 条码系统集成 (Barcode System Integration)
-   - Handheld barcode scanners (手持式条码扫描枪) for warehousing, retail, logistics
-   - Fixed-mount and presentation scanners for checkout and conveyors
-   - Industrial barcode label printers (条码打印机) — thermal transfer and direct thermal
-   - Complete barcode label design, printing, and management systems
-   - POS integration, inventory management system integration
-   - System installation, configuration, training, and after-sales support
-
-2. RFID智能方案设计 (RFID Intelligent Solution Design)
-   - UHF / HF / NFC RFID system design and deployment
-   - Warehouse inventory management (仓储盘点), asset tracking (资产追踪)
-   - Supply chain visibility (供应链可视化) and production line tracking
-   - Retail loss prevention and smart shelf solutions
-   - Access control (门禁) and personnel management
-   - Full project scope: consultation → hardware supply → software integration → go-live support
-
-3. 无线应用系统 (Wireless Application Systems)
-   - Industrial-grade WiFi network planning and deployment
-   - Wireless handheld terminals (无线手持终端) and mobile data collection
-   - Warehouse mobile WMS (仓库管理系统) applications
-   - Enterprise wireless network infrastructure consulting
-
-══ INDUSTRIES SERVED ══
-物流仓储 (Logistics & Warehousing) | 制造业 (Manufacturing) | 零售 (Retail) | 医疗 (Healthcare) | 政府 (Government) | 教育 (Education) | 餐饮 (Food & Beverage)
-
-══ YOUR BEHAVIOUR RULES ══
-• LANGUAGE: Detect and match the user's language exactly. Chinese → respond in Chinese. English → respond in English. Mixed → use the dominant language.
-• TONE: Professional, warm, solution-focused, concise. Like a knowledgeable senior sales engineer.
-• PRICING: Never state specific prices. Say: "请联系我们的销售团队获取专属报价 (Please contact our sales team for a customised quotation)."
-• CONSULTATION: Proactively offer a free technical consultation (免费技术咨询) for complex requirements.
-• UNKNOWN INFO: If unsure, say so honestly and offer to connect them with the right expert.
-• FORMAT: Use bullet points for lists. Keep responses focused — ideally under 200 words per reply unless detail is required.
-• CONTACT: Guide interested users to reach the sales / technical team directly.`;
+/* ── Config ───────────────────────────────────────────────────────
+   The API key is NO LONGER in the front-end. All chat requests go to
+   the backend proxy at /api/chat, which holds the DeepSeek key as a
+   server-side secret. The system prompt also lives on the server.
+──────────────────────────────────────────────────────────────────── */
+const CHAT_ENDPOINT = '/api/chat';
 
 const CHIPS = {
     zh: [
@@ -574,8 +537,11 @@ const CHIPS = {
     ],
 };
 
-/* ── State ────────────────────────────────────────────────────── */
-let history   = [{ role: 'system', content: SYSTEM_PROMPT }];
+/* ── State ────────────────────────────────────────────────────────
+   history only holds user/assistant turns now — the server adds the
+   system prompt on every request.
+──────────────────────────────────────────────────────────────────── */
+let history   = [];
 let busy      = false;
 let lang      = 'zh';
 
@@ -698,28 +664,20 @@ async function send(preset) {
     statusEl.textContent = lang === 'zh' ? '思考中…' : 'Thinking…';
 
     try {
-        const res = await fetch(API_URL, {
+        const res = await fetch(CHAT_ENDPOINT, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_KEY}`,
-            },
-            body: JSON.stringify({
-                model:       MODEL,
-                messages:    history,
-                temperature: 0.72,
-                max_tokens:  900,
-                stream:      false,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: history }),
         });
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(`${res.status} – ${err.error?.message || 'API error'}`);
+            throw new Error(`${res.status} – ${err.error || 'API error'}`);
         }
 
         const data  = await res.json();
-        const reply = data.choices[0].message.content.trim();
+        const reply = (data.reply || '').trim();
+        if (!reply) throw new Error('Empty reply');
 
         hideTyping();
         appendMessage('bot', reply);

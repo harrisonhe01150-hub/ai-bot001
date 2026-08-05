@@ -1035,26 +1035,12 @@
 <script>
 'use strict';
 
-/* ── DeepSeek config ──────────────────────────────────────── */
-const API_KEY = 'sk-d71be64a6edd4c248c6cbbf37b072805';
-const API_URL = 'https://api.deepseek.com/v1/chat/completions';
-
-const SYSTEM_PROMPT = `You are 美辉客服助手, the official AI customer service assistant for 美辉科技有限公司 (Meihui Technology Co., Ltd.).
-
-The company specialises in:
-1. 条码系统集成 — handheld/fixed barcode scanners, barcode label printers, POS & inventory systems, full installation & support.
-2. RFID智能方案设计 — UHF/HF/NFC RFID for warehouse inventory, asset tracking, supply chain, access control. Full project delivery.
-3. 无线应用系统 — Industrial WiFi planning, wireless handheld terminals, mobile WMS, enterprise wireless infrastructure.
-
-Industries served: 物流仓储, 制造业, 零售, 医疗, 政府, 教育, 餐饮.
-
-Rules:
-• Match the user's language exactly (Chinese → Chinese, English → English).
-• Professional, warm, solution-focused. Ask clarifying questions to understand their needs.
-• For pricing: "请联系我们销售团队获取专属报价" (contact sales for a customised quote).
-• Offer free technical consultation (免费技术咨询) for complex queries.
-• Keep answers concise — under 180 words unless detail is necessary.
-• If unsure, say so and offer to connect them with an expert.`;
+/* ── Config ───────────────────────────────────────────────────────
+   The DeepSeek API key is NO LONGER in this file. Chat requests go to
+   the backend proxy at /api/chat, which holds the key server-side and
+   injects the system prompt. Nothing sensitive is shipped to browsers.
+──────────────────────────────────────────────────────────────────── */
+const CHAT_ENDPOINT = '/api/chat';
 
 const QUICK_QUESTIONS = [
     '你们的条码方案适合哪些行业？',
@@ -1062,13 +1048,15 @@ const QUICK_QUESTIONS = [
     '如何获取免费技术咨询？',
 ];
 
-/* ── State ────────────────────────────────────────────────── */
-let chatHistory = [{ role: 'system', content: SYSTEM_PROMPT }];
+/* ── State ────────────────────────────────────────────────────────
+   chatHistory holds only user/assistant turns; the server adds system.
+──────────────────────────────────────────────────────────────────── */
+let chatHistory = [];
 let chatBusy    = false;
 let panelOpen   = false;
 let initialized = false;
 
-/* ── DOM ──────────────────────────────────────────────────── */
+/* ── DOM ──────────────────────────────────────────────── */
 const panel     = document.getElementById('chat-panel');
 const msgsEl    = document.getElementById('wp-messages');
 const inputEl   = document.getElementById('wp-input');
@@ -1104,10 +1092,19 @@ function initChat() {
     w.className = 'wp-welcome';
     w.innerHTML = `<strong>👋 您好！欢迎联系美辉科技</strong>
 我是您的专属AI客服助手，随时为您解答条码系统、RFID方案及无线应用相关问题。
-<div class="wp-chips">
-${QUICK_QUESTIONS.map(q => `<button class="wp-chip" onclick="send('${q}')">${q}</button>`).join('')}
-</div>`;
+<div class="wp-chips" id="wp-chips"></div>`;
     msgsEl.appendChild(w);
+
+    // Chips are wired with addEventListener (no inline onclick) so quotes /
+    // special characters in questions can never break the markup.
+    const chipWrap = w.querySelector('#wp-chips');
+    QUICK_QUESTIONS.forEach(q => {
+        const b = document.createElement('button');
+        b.className = 'wp-chip';
+        b.textContent = q;
+        b.addEventListener('click', () => send(q));
+        chipWrap.appendChild(b);
+    });
 }
 
 /* ── Append message ───────────────────────────────────────── */
@@ -1174,24 +1171,16 @@ async function send(preset) {
     statusEl.textContent = '思考中...';
 
     try {
-        const res = await fetch(API_URL, {
+        const res = await fetch(CHAT_ENDPOINT, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_KEY}`,
-            },
-            body: JSON.stringify({
-                model:       'deepseek-chat',
-                messages:    chatHistory,
-                temperature: 0.72,
-                max_tokens:  800,
-                stream:      false,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: chatHistory }),
         });
 
         if (!res.ok) throw new Error(`${res.status}`);
         const data  = await res.json();
-        const reply = data.choices[0].message.content.trim();
+        const reply = (data.reply || '').trim();
+        if (!reply) throw new Error('Empty reply');
 
         hideTyping();
         appendMsg('bot', reply);
