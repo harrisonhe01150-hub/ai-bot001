@@ -8,6 +8,8 @@
 // Set the key in Vercel:  Project → Settings → Environment Variables
 //   DEEPSEEK_API_KEY = sk-...your-NEW-rotated-key...
 
+import { retrieveKnowledge } from '../lib/knowledge.js';
+
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 const MODEL = 'deepseek-chat';
 
@@ -19,10 +21,9 @@ const SYSTEM_PROMPT = `You are 美辉客服助手 (Meihui AI Customer Service As
 美辉科技有限公司 is a professional technology company specialising in three core solution areas:
 
 1. 条码系统集成 (Barcode System Integration)
-   - Handheld barcode scanners (手持式条码扫描枪) for warehousing, retail, logistics
-   - Fixed-mount and presentation scanners for checkout and conveyors
-   - Industrial barcode label printers (条码打印机) — thermal transfer and direct thermal
-   - Complete barcode label design, printing, and management systems
+   - Handheld barcode scanners (手持式条码扫描枪) — brands: Zebra (DS4608 2D, LI2208 1D), Honeywell; wireless guns; fixed-mount scanners (232/485/Ethernet)
+   - Barcode label printers (条码打印机) — brands: Zebra (ZT211, ZT510, Xi4 industrial; ZD888T desktop; ZC100/ZC300 card printers), Honeywell, TSC
+   - Label & ribbon consumables (标签/碳带耗材), barcode label design and management systems
    - POS integration, inventory management system integration
    - System installation, configuration, training, and after-sales support
 
@@ -50,7 +51,17 @@ const SYSTEM_PROMPT = `You are 美辉客服助手 (Meihui AI Customer Service As
 • CONSULTATION: Proactively offer a free technical consultation (免费技术咨询) for complex requirements.
 • UNKNOWN INFO: If unsure, say so honestly and offer to connect them with the right expert.
 • FORMAT: Use bullet points for lists. Keep responses focused — ideally under 200 words per reply unless detail is required.
-• CONTACT: Guide interested users to reach the sales / technical team directly.`;
+• CONTACT: Guide interested users to reach the sales / technical team directly.
+
+══ KNOWLEDGE BASE (参考资料) ══
+When a «参考资料» block is appended below, it contains Meihui's internal product knowledge and
+troubleshooting guides — treat it as authoritative and base your answer on it. For troubleshooting,
+walk the customer through ONE most-likely diagnostic step at a time rather than dumping the whole
+checklist. Only share the official zebra.com download links from the reference material, never invent
+URLs. For hardware faults you cannot resolve remotely, follow the 售后服务流程: ask for the device
+serial number photo (check warranty), photos/video of indicator lights or panel, then offer to
+connect 技术服务人员. If the reference material does not cover the question, say so honestly — do
+not fabricate specs.`;
 
 // Basic limits to reduce abuse of your API budget.
 const MAX_MESSAGES = 30;      // most recent turns kept
@@ -91,9 +102,13 @@ export default async function handler(req, res) {
     .slice(-MAX_MESSAGES)
     .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_CHARS) }));
 
+  // Retrieve relevant product-knowledge sections for the current question
+  const kb = retrieveKnowledge(clean);
+  const system = kb ? `${SYSTEM_PROMPT}\n\n«参考资料»\n${kb}` : SYSTEM_PROMPT;
+
   const payload = {
     model: MODEL,
-    messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...clean],
+    messages: [{ role: 'system', content: system }, ...clean],
     temperature: 0.72,
     max_tokens: 900,
     stream: false,
