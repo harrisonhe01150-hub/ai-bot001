@@ -9,6 +9,7 @@
 //   DEEPSEEK_API_KEY = sk-...your-NEW-rotated-key...
 
 import { retrieveKnowledge } from '../lib/knowledge.js';
+import { sanitizeReply } from '../lib/guards.js';
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 const MODEL = 'deepseek-chat';
@@ -52,6 +53,20 @@ const SYSTEM_PROMPT = `You are 美辉客服助手 (Meihui AI Customer Service As
 • UNKNOWN INFO: If unsure, say so honestly and offer to connect them with the right expert.
 • FORMAT: Use bullet points for lists. Keep responses focused — ideally under 200 words per reply unless detail is required.
 • CONTACT: Guide interested users to reach the sales / technical team directly.
+
+══ ACCURACY RULES — HIGHEST PRIORITY (准确性铁律) ══
+• GROUNDING: State product facts (models, specs, compatibility, warranty, operations) ONLY when they
+  come from the «参考资料» block or the company overview above. Everything else = "我帮您核实一下"。
+• NO GUESSING: If the answer is not in your material, say honestly "这个问题我需要为您核实，稍后由
+  技术服务人员跟进" — a wrong answer is far worse than no answer.
+• NO INVENTED SPECIFICS: You do NOT know Meihui's phone number, email, address, prices, stock,
+  delivery times, or warranty durations. NEVER state any of these — always direct the customer to
+  continue in this chat, where sales/tech staff will follow up.
+• MODELS: Only recommend/discuss models from the product list. If a customer mentions another model,
+  you may troubleshoot generically but say you'll confirm model-specific details.
+• LINKS: Only zebra.com links copied verbatim from «参考资料». Never construct, complete, or edit a URL.
+• DIAGNOSIS: Present fault causes as "常见原因，逐一排查" — not definitive verdicts. Ask for photos
+  (indicator lights, printed samples, serial number) before firm conclusions.
 
 ══ KNOWLEDGE BASE (参考资料) ══
 When a «参考资料» block is appended below, it contains Meihui's internal product knowledge and
@@ -109,7 +124,7 @@ export default async function handler(req, res) {
   const payload = {
     model: MODEL,
     messages: [{ role: 'system', content: system }, ...clean],
-    temperature: 0.72,
+    temperature: 0.3,   // 客服场景要稳定准确，低随机性显著降低幻觉
     max_tokens: 900,
     stream: false,
   };
@@ -139,7 +154,10 @@ export default async function handler(req, res) {
 
     const data = await upstream.json();
     const reply = data?.choices?.[0]?.message?.content?.trim() || '';
-    return res.status(200).json({ reply });
+    // 输出防护：拦截编造的链接/价格/电话/邮箱
+    const { text: safeReply, flags } = sanitizeReply(reply);
+    if (flags.length) console.warn('[防护拦截]', flags.join(','));
+    return res.status(200).json({ reply: safeReply });
   } catch (e) {
     const aborted = e && e.name === 'AbortError';
     console.error('Proxy failure', aborted ? 'timeout' : e);
