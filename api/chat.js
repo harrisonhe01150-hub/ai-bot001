@@ -54,6 +54,13 @@ const SYSTEM_PROMPT = `You are 美辉客服助手 (Meihui AI Customer Service As
 • FORMAT: Use bullet points for lists. Keep responses focused — ideally under 200 words per reply unless detail is required.
 • CONTACT: Guide interested users to reach the sales / technical team directly.
 
+══ 模糊问题：先澄清，再回答 ══
+如果客户的问题太模糊、无法定位到唯一的答案方向（缺设备类型、缺型号、缺具体现象），
+先别急着答：先问一个最关键的澄清问题（问的顺序：具体现象 > 设备类型/型号），
+等客户补充后再给出针对性的回答。例：「打印机坏了」→ 先问「是完全没反应开不了机，
+还是能打但打出来有问题？」。客户描述已经很具体的，直接回答，不要为了问而问。
+最多追问两三轮；实在问不清就引导走售后流程（拍照/录像提供现象）。
+
 ══ ACCURACY RULES — HIGHEST PRIORITY (准确性铁律) ══
 • GROUNDING: State product facts (models, specs, compatibility, warranty, operations) ONLY when they
   come from the «参考资料» block or the company overview above. Everything else = "我帮您核实一下"。
@@ -122,8 +129,9 @@ export default async function handler(req, res) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_CHARS) }));
 
   // Retrieve relevant product-knowledge sections for the current question
+  const NO_KB_HINT = `\n\n«检索提示»\n本轮客户的问题没有命中任何内部资料条目。如果客户问的是产品、故障、售后类问题，很可能是描述太模糊——按「模糊问题：先澄清」的做法，先问一个最关键的澄清问题，等客户补充后再作答。绝不要在没有资料支撑的情况下编造任何具体事实。`;
   const kb = retrieveKnowledge(clean);
-  const system = kb ? `${SYSTEM_PROMPT}\n\n«参考资料»\n${kb}` : SYSTEM_PROMPT;
+  const system = kb ? `${SYSTEM_PROMPT}\n\n«参考资料»\n${kb}` : SYSTEM_PROMPT + NO_KB_HINT;
 
   const payload = {
     model: MODEL,
