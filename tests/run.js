@@ -18,7 +18,10 @@ import {
   setCustomSections, setBuiltinOverrides, applyRemoteKnowledge,
 } from '../lib/knowledge.js';
 import { sanitizeReply, setExtraContacts, getExtraContacts } from '../lib/guards.js';
-import { ensureRemoteKnowledge, resetRemoteKnowledgeCache } from '../lib/remote-kb.js';
+import {
+  ensureRemoteKnowledge, resetRemoteKnowledgeCache,
+  getRemoteKnowledgeFailedAt, FAILURE_BACKOFF_MS,
+} from '../lib/remote-kb.js';
 
 /* ── 迷你测试框架 ────────────────────────────────────────── */
 let passed = 0;
@@ -162,12 +165,83 @@ test('拉取失败（网络错 / 非 2xx / 脏 JSON）：退回本地知识库�
   }
 });
 
-test('失败不会被 TTL 挡住：下一次调用还会再试', async () => {
+test('负缓存：连着 5 次调用只打一次接口，30 秒冷却期过了才再试', async () => {
   reset();
   const calls = [];
   const fetchFn = failFetch(calls);
-  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn });
-  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn });
+  let now = 1000000;
+  const nowFn = () => now;
+
+  // 客服服务挂了：5 个请求接连打进来，不能每个都去重试一次、每个都白等一个超时
+  for (let i = 0; i < 5; i++) {
+    const r = await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn, nowFn });
+    assert.deepEqual(r, { source: 'local', version: '' }, `第 ${i + 1} 次`);
+  }
+  assert.equal(calls.length, 1, '冷却期内只该真的打一次接口');
+  assert.equal(getRemoteKnowledgeFailedAt(), 1000000);
+
+  // 还差 1 秒出冷却 → 仍然不发
+  now += FAILURE_BACKOFF_MS - 1000;
+  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn, nowFn });
+  assert.equal(calls.length, 1);
+
+  // 31 秒后 → 再试一次
+  now = 1000000 + 31000;
+  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn, nowFn });
+  assert.equal(calls.length, 2, '冷却期过了必须再试');
+  assert.equal(getRemoteKnowledgeFailedAt(), now, '又失败一次，冷却重新计时');
+});
+
+test('负缓存：有旧快照时冷却期内继续返回 stale，一次请求都不发', async () => {
+  reset();
+  const calls = [];
+  let now = 5000000;
+  const nowFn = () => now;
+
+  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn: okFetch(samplePayload(), calls), nowFn });
+  assert.equal(calls.length, 1);
+
+  // ttlMs=0 让缓存立刻过期，第一次真去拉、拉失败 → stale
+  const fail = failFetch(calls);
+  assert.deepEqual(
+    await ensureRemoteKnowledge({ url: URL_, token: 't', ttlMs: 0, fetchFn: fail, nowFn }),
+    { source: 'stale', version: 'v-abc123' },
+  );
+  assert.equal(calls.length, 2);
+
+  // 冷却期内再来：还是 stale，但一次接口都不打
+  for (let i = 0; i < 4; i++) {
+    assert.deepEqual(
+      await ensureRemoteKnowledge({ url: URL_, token: 't', ttlMs: 0, fetchFn: fail, nowFn }),
+      { source: 'stale', version: 'v-abc123' },
+    );
+  }
+  assert.equal(calls.length, 2, '冷却期内一次都不该再打');
+  // 老板补的知识和白名单照常生效，客户完全无感
+  assert.ok(retrieveKnowledge([{ role: 'user', content: '春节值班' }]).includes('13800001111'));
+  assert.ok(sanitizeReply('打 13800001111').text.includes('13800001111'));
+
+  now += 31000;
+  await ensureRemoteKnowledge({ url: URL_, token: 't', ttlMs: 0, fetchFn: fail, nowFn });
+  assert.equal(calls.length, 3);
+});
+
+test('负缓存：拉通之后冷却清零，下一次失败重新从头计时', async () => {
+  reset();
+  const calls = [];
+  let now = 9000000;
+  const nowFn = () => now;
+
+  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn: failFetch(calls), nowFn });
+  assert.equal(getRemoteKnowledgeFailedAt(), 9000000);
+
+  now += 31000;
+  await ensureRemoteKnowledge({ url: URL_, token: 't', ttlMs: 0, fetchFn: okFetch(samplePayload(), calls), nowFn });
+  assert.equal(getRemoteKnowledgeFailedAt(), 0, '通了就该把冷却清掉');
+  assert.equal(calls.length, 2);
+
+  // 通了之后再来一次成功的：TTL 还新鲜，不发请求
+  await ensureRemoteKnowledge({ url: URL_, token: 't', fetchFn: okFetch(samplePayload(), calls), nowFn });
   assert.equal(calls.length, 2);
 });
 

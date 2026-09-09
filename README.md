@@ -36,7 +36,7 @@ ai-bot001/
 ├─ lib/
 │  ├─ knowledge.js   # 产品知识库 + 关键词检索（meihui-wecom-kf 的副本 + 远程快照接入）
 │  ├─ guards.js      # 输出防护：拦编造的链接/价格/电话/邮箱（meihui-wecom-kf 的副本）
-│  └─ remote-kb.js   # 拉取客服服务的 /kb 快照（TTL 缓存 + 失败退回本地）
+│  └─ remote-kb.js   # 拉取客服服务的 /kb 快照（TTL 缓存 + 失败退回本地 + 30 秒失败冷却）
 ├─ tests/
 │  └─ run.js         # 零依赖自测：node tests/run.js
 ├─ index.html        # Full-screen chat page
@@ -65,6 +65,9 @@ GET https://kf.hzmarvy.com/kb        Authorization: Bearer <KB_REMOTE_TOKEN>
   否则新号码会被 `lib/guards.js` 当成模型编造的内容抹掉。
 - 拉失败**不影响回答**：有上一次的快照就继续用（stale），一次都没成功过就用本地硬编码那份。
   超时 2.5 秒，永不抛异常。并发请求共享同一次拉取。
+- 失败之后有 **30 秒负缓存**：冷却期内一次请求都不发，直接用手头的快照 / 本地那份。
+  否则客服服务一挂，网站每来一个请求就去重试一次，既把对方按在地上打，
+  自己每个请求还要白等一个 2.5 秒超时。冷却期一过自动再试一次。
 - 只在「状态变化」或首次加载时打一行 `[远程知识库] source=… version=…`，不做逐请求日志。
 
 不配 `KB_REMOTE_URL` 就完全跳过这一步，行为与接入前一模一样。
