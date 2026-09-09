@@ -3,5 +3,11 @@
   "version": "1.0.0",
   "description": "Meihui Technology bilingual AI customer-service chatbot with a secure DeepSeek proxy.",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node tests/run.js"
+  }
 }
